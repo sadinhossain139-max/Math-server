@@ -35,7 +35,7 @@ logger = logging.getLogger("ai-server")
 # Environment variables
 GROQ_API_KEY = os.getenv("GROQ_API_KEY", "")
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "")
-GROQ_MODEL = os.getenv("GROQ_MODEL", "llama-3.3-70b-versatile")
+GROQ_MODEL = os.getenv("GROQ_MODEL", "")
 GEMINI_MODEL = os.getenv("GEMINI_MODEL", "gemini-3.6-flash")
 RATE_LIMIT_PER_MINUTE = int(os.getenv("RATE_LIMIT_PER_MINUTE", "10"))
 MAX_QUESTION_LENGTH = int(os.getenv("MAX_QUESTION_LENGTH", "500"))
@@ -48,7 +48,7 @@ FREE_MODEL_NAME = os.getenv("FREE_MODEL_NAME", "openai")
 
 # Groq model list for fallback
 GROQ_MODELS = [
-    "llama-3.3-70b-versatile",
+    "gpt-oss-120b",
     "llama-3.1-8b-instant",
     "mixtral-8x7b-32768",
     "gemma2-9b-it"
