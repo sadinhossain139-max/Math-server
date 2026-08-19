@@ -149,7 +149,7 @@ async def check_rate_limit(request: Request) -> None:
 # ---------------------------
 SYSTEM_PROMPTS = {
     "detailed": {
-        "bn": """তুমি একজন অভিজ্ঞ গণিত শিক্ষক এবং সমস্যা সমাধান বিশেষজ্ঞ। তোমার কাজ[...]""",
+        "bn": """তুমি একজন অভিজ্ঞ গণিত শিক্ষক এবং সমস্যা সমাধান বিশেষজ্ঞ। তোমার কাজ[...][...]
         
         "en": """You are an experienced mathematics teacher and problem-solving expert. Your task:
 
@@ -170,13 +170,13 @@ Response structure:
     },
     
     "answer_only": {
-        "bn": """শুধুমাত্র চূড়ান্ত উত্তরটি দাও, কোনো ব্যাখ্যা, ধাপ, বা অতিরিক্ত তথ্�[...]""",
+        "bn": """শুধুমাত্র চূড়ান্ত উত্তরটি দাও, কোনো ব্যাখ্যা, ধাপ, বা অতিরিক্ত তথ্�[..[...]
         
         "en": """Provide only the final answer without any explanation, steps, or additional information. Give the answer as a number, fraction, or concise expression."""
     },
     
     "roadmap": {
-        "bn": """উত্তর দিয়ো না, শুধু সমাধানের রোডম্যাপ দাও। নিম্নলিখিত কাঠামো অনুস[...]""",
+        "bn": """উত্তর দিয়ো না, শুধু সমাধানের রোডম্যাপ দাও। নিম্নলিখিত কাঠামো অনুস[...][...]
         
         "en": """Don't provide the answer, only give a solution roadmap. Follow this structure:
 
@@ -188,7 +188,7 @@ Response structure:
     },
     
     "interactive": {
-        "bn": """তুমি একজন ইন্টারঅ্যাক্টিভ গণিত শিক্ষক। শিক্ষার্থীকে ধাপে ধাপে সম��[...]""",
+        "bn": """তুমি একজন ইন্টারঅ্যাক্টিভ গণিত শিক্ষক। শিক্ষার্থীকে ধাপে ধাপে সম��[[...]
         
         "en": """You are an interactive mathematics teacher. Help the student solve step by step:
 
@@ -291,6 +291,9 @@ response_cache = ResponseCache(ttl_seconds=CACHE_TTL_SECONDS)
 # ---------------------------
 async def call_groq(question: str, system_prompt: str) -> str:
     """Call Groq API with enhanced error handling and model fallback."""
+    # Ensure we declare global before any assignment or usage that depends on it being global
+    global GROQ_MODEL
+
     if not GROQ_API_KEY:
         raise ValueError("Groq API key not configured")
 
@@ -337,7 +340,6 @@ async def call_groq(question: str, system_prompt: str) -> str:
                     raise ValueError("Empty response from Groq")
 
                 # If we succeeded with a fallback model, update global GROQ_MODEL for future calls
-                global GROQ_MODEL
                 if model != GROQ_MODEL:
                     GROQ_MODEL = model
                     logger.info(f"Switched GROQ_MODEL to fallback model: {GROQ_MODEL}")
