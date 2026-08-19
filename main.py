@@ -42,6 +42,14 @@ MAX_QUESTION_LENGTH = int(os.getenv("MAX_QUESTION_LENGTH", "500"))
 CACHE_ENABLED = os.getenv("CACHE_ENABLED", "true").lower() == "true"
 CACHE_TTL_SECONDS = int(os.getenv("CACHE_TTL_SECONDS", "3600"))
 
+# Groq model list - try these in order if configured model is not available
+GROQ_MODELS = [
+    "llama-3.3-70b-versatile",
+    "llama-3.1-8b-instant",
+    "mixtral-8x7b-32768",
+    "gemma2-9b-it"
+]
+
 # ---------------------------
 # FastAPI App
 # ---------------------------
@@ -141,22 +149,7 @@ async def check_rate_limit(request: Request) -> None:
 # ---------------------------
 SYSTEM_PROMPTS = {
     "detailed": {
-        "bn": """তুমি একজন অভিজ্ঞ গণিত শিক্ষক এবং সমস্যা সমাধান বিশেষজ্ঞ। তোমার কাজ:
-
-১. প্রশ্নটি মনোযোগ দিয়ে পড়ো এবং বুঝে নাও
-২. ধাপে ধাপে সমাধান দাও, প্রতিটি ধাপ ব্যাখ্যা করো
-৩. প্রতিটি সূত্র এবং তার প্রয়োগ ব্যাখ্যা করো
-৪. সম্ভব হলে একাধিক পদ্ধতি দেখাও
-৫. চূড়ান্ত উত্তরটি স্পষ্টভাবে চিহ্নিত করো
-৬. সাধারণ ভুল সম্পর্কে সতর্ক করো
-৭. প্রয়োজনে চিত্র বা ডায়াগ্রামের বর্ণনা দাও
-
-উত্তরের গঠন:
-- সমস্যা বিশ্লেষণ
-- প্রয়োজনীয় সূত্র
-- ধাপে ধাপে সমাধান
-- চূড়ান্ত উত্তর
-- যাচাইকরণ (যদি সম্ভব হয়)""",
+        "bn": """তুমি একজন অভিজ্ঞ গণিত শিক্ষক এবং সমস্যা সমাধান বিশেষজ্ঞ। তোমার কাজ[...]""",
         
         "en": """You are an experienced mathematics teacher and problem-solving expert. Your task:
 
@@ -177,19 +170,13 @@ Response structure:
     },
     
     "answer_only": {
-        "bn": """শুধুমাত্র চূড়ান্ত উত্তরটি দাও, কোনো ব্যাখ্যা, ধাপ, বা অতিরিক্ত তথ্য ছাড়া। উত্তরটি সংখ্যা, ভগ্নাংশ, বা সংক্ষিপ্ত রাশি হিসেবে দাও।""",
+        "bn": """শুধুমাত্র চূড়ান্ত উত্তরটি দাও, কোনো ব্যাখ্যা, ধাপ, বা অতিরিক্ত তথ্�[...]""",
         
         "en": """Provide only the final answer without any explanation, steps, or additional information. Give the answer as a number, fraction, or concise expression."""
     },
     
     "roadmap": {
-        "bn": """উত্তর দিয়ো না, শুধু সমাধানের রোডম্যাপ দাও। নিম্নলিখিত কাঠামো অনুসরণ করো:
-
-১. প্রয়োজনীয় সূত্র ও ধারণা
-২. ধাপগুলির ক্রম
-৩. প্রতিটি ধাপে কী করতে হবে
-৪. কোথায় সতর্ক থাকতে হবে
-৫. বিকল্প পদ্ধতি (যদি থাকে)""",
+        "bn": """উত্তর দিয়ো না, শুধু সমাধানের রোডম্যাপ দাও। নিম্নলিখিত কাঠামো অনুস[...]""",
         
         "en": """Don't provide the answer, only give a solution roadmap. Follow this structure:
 
@@ -201,15 +188,7 @@ Response structure:
     },
     
     "interactive": {
-        "bn": """তুমি একজন ইন্টারঅ্যাক্টিভ গণিত শিক্ষক। শিক্ষার্থীকে ধাপে ধাপে সমাধান করতে সাহায্য করো:
-
-১. প্রথমে সমস্যাটি বুঝতে সাহায্য করো
-২. শিক্ষার্থীকে প্রশ্ন করো
-৩. তাদের উত্তর অনুযায়ী পরবর্তী ধাপে যাও
-৪. ভুল হলে সংশোধন করতে সাহায্য করো
-৫. সঠিক পথে পরিচালিত করো
-
-প্রথমে সমস্যাটি বিশ্লেষণ করো এবং শিক্ষার্থীকে প্রথম প্রশ্নটি করো।""",
+        "bn": """তুমি একজন ইন্টারঅ্যাক্টিভ গণিত শিক্ষক। শিক্ষার্থীকে ধাপে ধাপে সম��[...]""",
         
         "en": """You are an interactive mathematics teacher. Help the student solve step by step:
 
@@ -311,75 +290,102 @@ response_cache = ResponseCache(ttl_seconds=CACHE_TTL_SECONDS)
 # Enhanced AI Provider Calls
 # ---------------------------
 async def call_groq(question: str, system_prompt: str) -> str:
-    """Call Groq API with enhanced error handling."""
+    """Call Groq API with enhanced error handling and model fallback."""
     if not GROQ_API_KEY:
         raise ValueError("Groq API key not configured")
-    
+
     url = "https://api.groq.com/openai/v1/chat/completions"
     headers = {
         "Authorization": f"Bearer {GROQ_API_KEY}",
         "Content-Type": "application/json",
     }
-    payload = {
-        "model": GROQ_MODEL,
-        "messages": [
-            {"role": "system", "content": system_prompt},
-            {"role": "user", "content": question},
-        ],
-        "temperature": 0.7,
-        "max_tokens": 2048,
-        "top_p": 0.9,
-        "frequency_penalty": 0.5,
-        "presence_penalty": 0.5,
-    }
-    
-    try:
-        async with httpx.AsyncClient(timeout=45) as client:
-            resp = await client.post(url, json=payload, headers=headers)
-            resp.raise_for_status()
-            data = resp.json()
-            
-            if "choices" not in data or not data["choices"]:
-                raise ValueError("Invalid response format from Groq")
-                
-            content = data["choices"][0]["message"]["content"].strip()
-            if not content:
-                raise ValueError("Empty response from Groq")
-                
-            return content
-            
-    except httpx.TimeoutException:
-        logger.error("Groq API timeout")
-        raise TimeoutError("Groq API request timed out")
-    except httpx.HTTPStatusError as e:
-        logger.error(f"Groq HTTP error: {e.response.status_code} - {e.response.text}")
-        raise RuntimeError(f"Groq API returned status {e.response.status_code}")
-    except Exception as e:
-        logger.error(f"Groq API error: {str(e)}")
-        raise
+
+    models_to_try = [GROQ_MODEL] + [m for m in GROQ_MODELS if m != GROQ_MODEL]
+    errors = []
+
+    for model in models_to_try:
+        payload = {
+            "model": model,
+            "messages": [
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": question},
+            ],
+            "temperature": 0.7,
+            "max_tokens": 2048,
+            "top_p": 0.9,
+            "frequency_penalty": 0.5,
+            "presence_penalty": 0.5,
+        }
+
+        try:
+            async with httpx.AsyncClient(timeout=45) as client:
+                resp = await client.post(url, json=payload, headers=headers)
+                # If model not found, Groq may return 404 or a specific error in body
+                if resp.status_code == 404:
+                    logger.warning(f"Groq model not found: {model} (status 404). Trying next model.")
+                    errors.append(f"{model}: 404 model not found")
+                    continue
+
+                resp.raise_for_status()
+                data = resp.json()
+
+                if "choices" not in data or not data["choices"]:
+                    raise ValueError("Invalid response format from Groq")
+
+                content = data["choices"][0]["message"]["content"].strip()
+                if not content:
+                    raise ValueError("Empty response from Groq")
+
+                # If we succeeded with a fallback model, update global GROQ_MODEL for future calls
+                global GROQ_MODEL
+                if model != GROQ_MODEL:
+                    GROQ_MODEL = model
+                    logger.info(f"Switched GROQ_MODEL to fallback model: {GROQ_MODEL}")
+
+                return content
+
+        except httpx.TimeoutException:
+            logger.error(f"Groq API timeout for model {model}")
+            errors.append(f"{model}: timeout")
+        except httpx.HTTPStatusError as e:
+            status = e.response.status_code
+            text = e.response.text
+            logger.error(f"Groq HTTP error for model {model}: {status} - {text}")
+            # If 404, try next model (already handled), otherwise record error
+            errors.append(f"{model}: {status}")
+        except Exception as e:
+            logger.error(f"Groq API error for model {model}: {str(e)}")
+            errors.append(f"{model}: {str(e)}")
+
+    # If we reach here, all models failed
+    raise RuntimeError("Groq providers failed: " + "; ".join(errors))
 
 async def call_gemini(question: str, system_prompt: str) -> str:
-    """Call Gemini API with new Interactions API."""
+    """Call Gemini API with correct format."""
     if not GEMINI_API_KEY:
         raise ValueError("Gemini API key not configured")
     
-    # নতুন Interactions API endpoint
-    url = "https://generativelanguage.googleapis.com/v1beta/interactions:create"
+    # পুরনো generateContent endpoint (এটা এখনও কাজ করে)
+    url = f"https://generativelanguage.googleapis.com/v1beta/models/{GEMINI_MODEL}:generateContent"
     
     headers = {
         "Content-Type": "application/json",
         "x-goog-api-key": GEMINI_API_KEY
     }
     
-    # নতুন Interactions API format
+    # সঠিক payload format
     payload = {
-        "model": GEMINI_MODEL,
-        "input": f"{system_prompt}\n\n{question}",
+        "contents": [
+            {
+                "parts": [
+                    {"text": system_prompt},
+                    {"text": question}
+                ]
+            }
+        ],
         "generationConfig": {
             "temperature": 0.7,
-            "maxOutputTokens": 2048,
-            "topP": 0.9,
-            "topK": 40,
+            "maxOutputTokens": 2048
         }
     }
     
@@ -389,32 +395,11 @@ async def call_gemini(question: str, system_prompt: str) -> str:
             
             if resp.status_code == 200:
                 data = resp.json()
-                
-                # নতুন response format - output_text ব্যবহার করুন
-                if "output_text" in data:
-                    content = data["output_text"].strip()
-                    if content:
-                        return content
-                
-                # Fallback: পুরনো format check
                 if "candidates" in data and data["candidates"]:
-                    content = data["candidates"][0]["content"]["parts"][0]["text"].strip()
-                    if content:
-                        return content
-                
-                raise ValueError("No valid response from Gemini")
-                
-            elif resp.status_code == 404:
-                raise RuntimeError(f"Gemini model {GEMINI_MODEL} not found")
-            elif resp.status_code == 429:
-                raise RuntimeError("Gemini rate limit exceeded")
+                    return data["candidates"][0]["content"]["parts"][0]["text"].strip()
             else:
-                error_detail = resp.text
-                raise RuntimeError(f"Gemini API error {resp.status_code}: {error_detail}")
-                
-    except httpx.TimeoutException:
-        logger.error("Gemini API timeout")
-        raise TimeoutError("Gemini API request timed out")
+                logger.error(f"Gemini error: {resp.text}")
+                raise RuntimeError(f"Gemini API error {resp.status_code}")
     except Exception as e:
         logger.error(f"Gemini API error: {str(e)}")
         raise
@@ -592,7 +577,7 @@ async def calculate_batch(request: BatchCalculateRequest):
         
     except Exception as e:
         logger.error(f"Batch processing error: {e}")
-        raise HTTPException(status_code=500, detail="ব্যাচ প্রসেসিং ব্যর্থ হয়েছে")
+        raise HTTPException(status_code=500, detail="ব্যাচ প���রসেসিং ব্যর্থ হয়েছে")
 
 # ---------------------------
 # Error Handlers
